@@ -1,0 +1,55 @@
+name: Columbo
+on: [push, pull_request, workflow_dispatch]
+permissions:
+  contents: read
+jobs:
+  columbo:
+    name: Columbo
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: source
+    env:
+      GOTOOLCHAIN: local
+      GOTELEMETRY: 'off'
+      GOOS: linux
+      GOARCH: amd64
+      GOWORK: 'off'
+      GOFLAGS: '-buildvcs=false'
+      CGO_ENABLED: '0'
+    steps:
+      - name: Check out dot-bridge
+        uses: actions/checkout@v4
+        with:
+          path: source
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Require private Columbo read access
+        env:
+          COLUMBO_READ_TOKEN: ${{ secrets.COLUMBO_READ_TOKEN }}
+        run: |
+          if [[ -z "$COLUMBO_READ_TOKEN" ]]; then
+            echo "::error::Set the COLUMBO_READ_TOKEN Actions secret with Contents: read access to KellyBennett/Columbo."
+            exit 1
+          fi
+      - name: Check out pinned Columbo implementation
+        uses: actions/checkout@v4
+        with:
+          repository: KellyBennett/Columbo
+          # CLI implementation from Columbo PR #4; main is currently spec-only.
+          ref: 60bfa4ff3350bffebd9ff5d655c8f0bf0ea843ad
+          token: ${{ secrets.COLUMBO_READ_TOKEN }}
+          path: columbo
+          persist-credentials: false
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.25.1'
+          cache-dependency-path: |
+            source/go.sum
+            columbo/go.sum
+      - name: Build Columbo from the pinned revision
+        working-directory: columbo
+        run: go build -o "$RUNNER_TEMP/columbo" ./cmd/columbo
+      - name: Investigate dot-bridge, including tests
+        run: '"$RUNNER_TEMP/columbo" ./...'

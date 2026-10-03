@@ -32,6 +32,30 @@ SQL or paths. `db/queries` is the source for sqlc-generated code in
 code is committed, so normal builds do not require sqlc. CI verifies regeneration,
 vet and the race-enabled test suite. Goose is used as a library; no CLI is needed.
 
+## Columbo CI
+
+The separate **Columbo** check builds [KellyBennett/Columbo](https://github.com/KellyBennett/Columbo)
+at commit `60bfa4ff3350bffebd9ff5d655c8f0bf0ea843ad` from its implementation
+[PR #4](https://github.com/KellyBennett/Columbo/pull/4). Columbo's `main` is
+currently spec-only. The workflow pins Go 1.25.1/Linux amd64, retains full bridge
+history, and runs `columbo ./...` against the bridge with Columbo's default
+thresholds and FAIL severities, including tests. Columbo's own source is checked
+out separately from the analyzed module. Findings and investigation errors fail
+the job; nothing is downgraded or suppressed to make it green.
+
+Because Columbo is private, add a repository Actions secret named
+`COLUMBO_READ_TOKEN` in dot-bridge, using a fine-grained token restricted to
+`KellyBennett/Columbo` with **Contents: read**. GitHub's default workflow token
+cannot read another private repository. This token is used only by the private
+checkout and is not persisted in Git configuration. Missing access fails with an
+explicit setup message rather than silently skipping the check. Secrets are
+unavailable to fork pull requests, which cannot run this private check directly.
+
+After setting the secret, rerun the workflow or use its manual trigger. Update
+the pinned commit deliberately when adopting a newer Columbo revision. The
+provisional Columbo implementation is being used for dogfooding, not as a
+released CLI. Existing bridge findings may keep this check red until addressed.
+
 ## Core boundaries
 
 - `Identity` is trusted host context, supplied separately from a public request.
