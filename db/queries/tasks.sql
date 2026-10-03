@@ -19,7 +19,7 @@ SELECT payload, approval_id FROM task_runs
 WHERE principal_id = ? AND environment = ? AND project_id = ? AND run_id = ?;
 
 -- name: CountPendingRuns :one
-SELECT COUNT(*) FROM task_runs WHERE project_id = ? AND environment = ?;
+SELECT COUNT(*) FROM run_lifecycle WHERE project_id = ? AND environment = ? AND phase = 'queued';
 
 -- name: InsertTaskRun :exec
 INSERT INTO task_runs (run_id, principal_id, environment, project_id, operation, idempotency_key, input_digest, approval_id, dispatch_token, payload)

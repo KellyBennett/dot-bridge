@@ -18,7 +18,7 @@ func concurrentSubmissions(brokers []*Broker, raw []byte) []taskCall {
 		group.Add(1)
 		go func(i int, broker *Broker) {
 			defer group.Done()
-			calls[i].response, calls[i].err = broker.Dispatch(context.Background(), raw, fixtureIdentity())
+			calls[i] = submissionCall(broker, raw)
 		}(i, broker)
 	}
 	group.Wait()
@@ -55,7 +55,7 @@ func (f *taskFixture) assertOneAcceptance(calls []taskCall) {
 		if !result.response.Replayed {
 			accepted++
 		}
-		f.persisted(result.response.Receipt)
+		result.persisted(f)
 	}
 	if accepted != 1 {
 		f.t.Fatal("expected one acceptance", accepted)
@@ -66,4 +66,9 @@ func (call taskCall) assertion(t *testing.T) taskAssertion {
 		t.Fatal(call.err)
 	}
 	return taskAssertion{t: t, response: call.response}
+}
+
+func submissionCall(broker *Broker, raw []byte) taskCall {
+	response, err := broker.Dispatch(context.Background(), raw, fixtureIdentity())
+	return taskCall{response: response, err: err}
 }

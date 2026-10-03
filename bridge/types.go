@@ -68,13 +68,18 @@ type DraftData struct {
 }
 
 type Response struct {
-	Summary   string     `json:"summary"`
-	Simulated bool       `json:"simulated"`
-	Receipt   Receipt    `json:"receipt"`
-	Data      *DraftData `json:"data"`
-	Run       *RunData   `json:"run,omitempty"`
-	Replayed  bool       `json:"replayed,omitempty"`
-	code      string
+	Summary    string           `json:"summary"`
+	Simulated  bool             `json:"simulated"`
+	Receipt    Receipt          `json:"receipt"`
+	Data       *DraftData       `json:"data"`
+	Run        *RunData         `json:"run,omitempty"`
+	Events     []RunEvent       `json:"events,omitempty"`
+	Result     *ResultManifest  `json:"result,omitempty"`
+	Artifacts  []ResultArtifact `json:"artifacts,omitempty"`
+	NextCursor string           `json:"next_cursor,omitempty"`
+	Truncated  bool             `json:"truncated,omitempty"`
+	Replayed   bool             `json:"replayed,omitempty"`
+	code       string
 }
 
 // Config is supplied locally by the host, never through the public contract.

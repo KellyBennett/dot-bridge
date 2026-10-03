@@ -29,7 +29,7 @@ func (q *Queries) ConsumeApproval(ctx context.Context, arg ConsumeApprovalParams
 }
 
 const countPendingRuns = `-- name: CountPendingRuns :one
-SELECT COUNT(*) FROM task_runs WHERE project_id = ? AND environment = ?
+SELECT COUNT(*) FROM run_lifecycle WHERE project_id = ? AND environment = ? AND phase = 'queued'
 `
 
 type CountPendingRunsParams struct {

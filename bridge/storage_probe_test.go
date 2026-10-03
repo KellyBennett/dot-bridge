@@ -51,7 +51,7 @@ func (p *journalProbe) count(expected int) {
 func (p *journalProbe) migrated() {
 	var version int
 	err := p.journal.db.QueryRow("SELECT MAX(version_id) FROM goose_db_version WHERE is_applied").Scan(&version)
-	if err != nil || version != 2 {
+	if err != nil || version != 3 {
 		p.t.Fatal("migration version not recorded", err)
 	}
 }
