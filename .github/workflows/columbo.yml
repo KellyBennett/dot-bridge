@@ -25,22 +25,24 @@ jobs:
           path: source
           fetch-depth: 0
           persist-credentials: false
-      - name: Check out pinned Columbo implementation
+      - name: Check out latest Columbo
         uses: actions/checkout@v4
         with:
           repository: KellyBennett/Columbo
-          # CLI implementation from Columbo PR #4; main is currently spec-only.
-          ref: 60bfa4ff3350bffebd9ff5d655c8f0bf0ea843ad
+          # Dogfood the latest product head on every CI run.
+          ref: main
           path: columbo
           persist-credentials: false
       - uses: actions/setup-go@v5
         with:
-          go-version: '1.25.1'
+          go-version-file: columbo/go.mod
           cache-dependency-path: |
             source/go.sum
             columbo/go.sum
-      - name: Build Columbo from the pinned revision
+      - name: Build Columbo and record the resolved revision
         working-directory: columbo
-        run: go build -o "$RUNNER_TEMP/columbo" ./cmd/columbo
+        run: |
+          git rev-parse HEAD
+          go build -o "$RUNNER_TEMP/columbo" ./cmd/columbo
       - name: Investigate dot-bridge, including tests
         run: '"$RUNNER_TEMP/columbo" ./...'

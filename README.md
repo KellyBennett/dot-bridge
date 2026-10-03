@@ -34,22 +34,20 @@ vet and the race-enabled test suite. Goose is used as a library; no CLI is neede
 
 ## Columbo CI
 
-The separate **Columbo** check builds [KellyBennett/Columbo](https://github.com/KellyBennett/Columbo)
-at commit `60bfa4ff3350bffebd9ff5d655c8f0bf0ea843ad` from its implementation
-[PR #4](https://github.com/KellyBennett/Columbo/pull/4). Columbo's `main` is
-currently spec-only. The workflow pins Go 1.25.1/Linux amd64, retains full bridge
-history, and runs `columbo ./...` against the bridge with Columbo's default
-thresholds and FAIL severities, including tests. Columbo's own source is checked
-out separately from the analyzed module. Findings and investigation errors fail
-the job; nothing is downgraded or suppressed to make it green.
+The separate **Columbo** check follows the latest `main` of
+[KellyBennett/Columbo](https://github.com/KellyBennett/Columbo) on every CI run.
+It reads the Go version from Columbo's `go.mod`, logs the resolved tool commit,
+builds the CLI on Linux amd64, and runs `columbo ./...` with default thresholds
+and FAIL severities, including tests. Full bridge history is available, and
+Columbo's own source is checked out separately from the analyzed module.
+Findings and investigation errors fail the job; no thresholds or suppressions
+are added to make it green.
 
-Columbo is public, so the workflow checks it out using GitHub Actions' default
-read-only token. No Columbo-specific secret is required, and checkout credentials
-are not persisted in Git configuration.
-
-Update the pinned commit deliberately when adopting a newer Columbo revision.
-The provisional Columbo implementation is being used for dogfooding, not as a
-released CLI. Existing bridge findings may keep this check red until addressed.
+Columbo is public, so checkout uses GitHub Actions' default read-only token.
+No Columbo-specific secret is required, and checkout credentials are not
+persisted in Git configuration. This is intentional product dogfooding:
+rerunning bridge CI picks up the current Columbo `main` without a dependency
+update in this repository.
 
 ## Core boundaries
 
