@@ -25,21 +25,12 @@ jobs:
           path: source
           fetch-depth: 0
           persist-credentials: false
-      - name: Require private Columbo read access
-        env:
-          COLUMBO_READ_TOKEN: ${{ secrets.COLUMBO_READ_TOKEN }}
-        run: |
-          if [[ -z "$COLUMBO_READ_TOKEN" ]]; then
-            echo "::error::Set the COLUMBO_READ_TOKEN Actions secret with Contents: read access to KellyBennett/Columbo."
-            exit 1
-          fi
       - name: Check out pinned Columbo implementation
         uses: actions/checkout@v4
         with:
           repository: KellyBennett/Columbo
           # CLI implementation from Columbo PR #4; main is currently spec-only.
           ref: 60bfa4ff3350bffebd9ff5d655c8f0bf0ea843ad
-          token: ${{ secrets.COLUMBO_READ_TOKEN }}
           path: columbo
           persist-credentials: false
       - uses: actions/setup-go@v5

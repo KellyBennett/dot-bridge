@@ -43,17 +43,12 @@ thresholds and FAIL severities, including tests. Columbo's own source is checked
 out separately from the analyzed module. Findings and investigation errors fail
 the job; nothing is downgraded or suppressed to make it green.
 
-Because Columbo is private, add a repository Actions secret named
-`COLUMBO_READ_TOKEN` in dot-bridge, using a fine-grained token restricted to
-`KellyBennett/Columbo` with **Contents: read**. GitHub's default workflow token
-cannot read another private repository. This token is used only by the private
-checkout and is not persisted in Git configuration. Missing access fails with an
-explicit setup message rather than silently skipping the check. Secrets are
-unavailable to fork pull requests, which cannot run this private check directly.
+Columbo is public, so the workflow checks it out using GitHub Actions' default
+read-only token. No Columbo-specific secret is required, and checkout credentials
+are not persisted in Git configuration.
 
-After setting the secret, rerun the workflow or use its manual trigger. Update
-the pinned commit deliberately when adopting a newer Columbo revision. The
-provisional Columbo implementation is being used for dogfooding, not as a
+Update the pinned commit deliberately when adopting a newer Columbo revision.
+The provisional Columbo implementation is being used for dogfooding, not as a
 released CLI. Existing bridge findings may keep this check red until addressed.
 
 ## Core boundaries
