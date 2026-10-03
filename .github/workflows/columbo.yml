@@ -1,0 +1,48 @@
+name: Columbo
+on: [push, pull_request, workflow_dispatch]
+permissions:
+  contents: read
+jobs:
+  columbo:
+    name: Columbo
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: source
+    env:
+      GOTOOLCHAIN: local
+      GOTELEMETRY: 'off'
+      GOOS: linux
+      GOARCH: amd64
+      GOWORK: 'off'
+      GOFLAGS: '-buildvcs=false'
+      CGO_ENABLED: '0'
+    steps:
+      - name: Check out dot-bridge
+        uses: actions/checkout@v4
+        with:
+          path: source
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Check out latest Columbo
+        uses: actions/checkout@v4
+        with:
+          repository: KellyBennett/Columbo
+          # Dogfood the latest product head on every CI run.
+          ref: main
+          path: columbo
+          persist-credentials: false
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: columbo/go.mod
+          cache-dependency-path: |
+            source/go.sum
+            columbo/go.sum
+      - name: Build Columbo and record the resolved revision
+        working-directory: columbo
+        run: |
+          git rev-parse HEAD
+          go build -o "$RUNNER_TEMP/columbo" ./cmd/columbo
+      - name: Investigate dot-bridge, including tests
+        run: '"$RUNNER_TEMP/columbo" ./...'

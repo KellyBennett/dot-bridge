@@ -32,14 +32,37 @@ SQL or paths. `db/queries` is the source for sqlc-generated code in
 code is committed, so normal builds do not require sqlc. CI verifies regeneration,
 vet and the race-enabled test suite. Goose is used as a library; no CLI is needed.
 
+## Columbo CI
+
+The separate **Columbo** check follows the latest `main` of
+[KellyBennett/Columbo](https://github.com/KellyBennett/Columbo) on every CI run.
+It reads the Go version from Columbo's `go.mod`, logs the resolved tool commit,
+builds the CLI on Linux amd64, and runs `columbo ./...` with default thresholds
+and FAIL severities, including tests. Full bridge history is available, and
+Columbo's own source is checked out separately from the analyzed module.
+Findings and investigation errors fail the job; no thresholds or suppressions
+are added to make it green.
+
+Columbo is public, so checkout uses GitHub Actions' default read-only token.
+No Columbo-specific secret is required, and checkout credentials are not
+persisted in Git configuration. This is intentional product dogfooding:
+rerunning bridge CI picks up the current Columbo `main` without a dependency
+update in this repository.
+
 ## Core boundaries
+
+The core separates wire/schema validation, grant policy, draft lookup/export,
+receipt decisions and database transactions into their own components. The
+dispatcher coordinates them and returns a response only after the journal
+commits. Test fixtures separate public-response assertions from database probes;
+concurrent reads and Goose migration lifecycles still exercise real SQLite.
 
 - `Identity` is trusted host context, supplied separately from a public request.
   This is not transport authentication. A future transport must verify identity
   before constructing it; there is deliberately no network listener today.
 - `Grant` and fixture registry are host configuration. The prototype accepts
   only the personal environment and registered ASCII document IDs.
-- `Broker.dispatch` rejects unknown fields, invalid types, unregistered IDs,
+- `Broker.Dispatch` rejects unknown fields, invalid types, unregistered IDs,
   stale revisions, expired/disabled grants and unsupported actions.
 - Export checking defaults to deny. A host may explicitly allow **synthetic**
   fixture text for tests; the implementation is not a production redactor.
@@ -47,7 +70,7 @@ vet and the race-enabled test suite. Goose is used as a library; no CLI is neede
   queries, with sequence,
   input/output digests, identity and policy metadata. Fixture text and exception
   details are not retained in receipts. No read response is returned if journal
-  commit fails; `AuditUnavailable` means no bridge receipt is available.
+  commit fails; `ErrAuditUnavailable` means no bridge receipt is available.
 - All returned responses, receipts and fixture data carry `simulated: true`.
   Visible summaries begin `SIMULATED — NO REAL AGENT EXECUTION`.
 - Returned text remains untrusted data. Consumers must render it safely without
