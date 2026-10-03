@@ -29,7 +29,11 @@ type readDraftArgs struct {
 }
 
 func validatedObject(raw []byte) (jsonObject, error) {
-	if len(raw) > MaxRequestBytes || !utf8.Valid(raw) {
+	return boundedObject(raw, MaxRequestBytes)
+}
+
+func boundedObject(raw []byte, limit int) (jsonObject, error) {
+	if len(raw) > limit || !utf8.Valid(raw) {
 		return nil, errors.New("invalid input size or encoding")
 	}
 	if err := uniqueJSON(raw); err != nil {

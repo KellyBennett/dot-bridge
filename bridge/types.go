@@ -9,6 +9,7 @@ import (
 
 const Label = "SIMULATED — NO REAL AGENT EXECUTION"
 const MaxRequestBytes = 8 * 1024
+const MaxSubmissionBytes = 256 * 1024
 const MaxDraftBytes = 128 * 1024
 
 // Identity is trusted host context. Never construct it from request fields.
@@ -49,6 +50,10 @@ type Receipt struct {
 	OutputDigest     string `json:"output_digest,omitempty"`
 	ExportedBytes    int    `json:"exported_bytes,omitempty"`
 	JournalSequence  int64  `json:"journal_sequence"`
+	ApprovalID       string `json:"approval_id,omitempty"`
+	RunID            string `json:"run_id,omitempty"`
+	EnvelopeDigest   string `json:"envelope_digest,omitempty"`
+	StateVersion     int64  `json:"state_version,omitempty"`
 	Simulated        bool   `json:"simulated"`
 }
 
@@ -67,6 +72,8 @@ type Response struct {
 	Simulated bool       `json:"simulated"`
 	Receipt   Receipt    `json:"receipt"`
 	Data      *DraftData `json:"data"`
+	Run       *RunData   `json:"run,omitempty"`
+	Replayed  bool       `json:"replayed,omitempty"`
 	code      string
 }
 
@@ -77,6 +84,7 @@ type Config struct {
 	Documents   map[string]string
 	Clock       func() time.Time
 	ExportCheck func(string) (bool, error)
+	Tasks       *TaskConfig
 }
 
 // ReceiptRecorder returns success only after a durable commit.
@@ -90,4 +98,5 @@ type Broker struct {
 	policy  accessPolicy
 	drafts  draftRegistry
 	clock   func() time.Time
+	tasks   *taskService
 }
