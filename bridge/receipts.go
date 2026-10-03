@@ -35,7 +35,7 @@ func (r *Receipt) identify(identity *Identity) {
 }
 
 func (r *Receipt) metadata(raw []byte) {
-	object, err := validatedObject(raw)
+	object, err := boundedObject(raw, MaxSubmissionBytes)
 	if err != nil {
 		return
 	}

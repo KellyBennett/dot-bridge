@@ -4,8 +4,36 @@
 
 package store
 
+import (
+	"database/sql"
+)
+
+type Approval struct {
+	ApprovalID     string
+	PrincipalID    string
+	Environment    string
+	ProjectID      string
+	EnvelopeDigest string
+	FrozenReview   string
+	ExpiresAt      string
+	ConsumedRunID  sql.NullString
+}
+
 type Receipt struct {
 	Sequence  int64
 	ReceiptID string
 	Payload   string
+}
+
+type TaskRun struct {
+	RunID          string
+	PrincipalID    string
+	Environment    string
+	ProjectID      string
+	Operation      string
+	IdempotencyKey string
+	InputDigest    string
+	ApprovalID     string
+	DispatchToken  string
+	Payload        string
 }

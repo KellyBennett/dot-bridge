@@ -60,7 +60,39 @@ func TestGooseMigrationDownUp(t *testing.T) {
 	f.up()
 	f.tableCount(1)
 	f.down()
+	f.tableCount(1)
+	f.down()
 	f.tableCount(0)
 	f.up()
 	f.tableCount(1)
+}
+
+func TestTaskMigrationPreservesExistingReceipt(t *testing.T) {
+	f := newSchemaFixture(t)
+	f.upTo(1)
+	f.seedReceipt()
+	f.up()
+	f.receiptRetained()
+	f.down()
+	f.receiptRetained()
+}
+func (f *schemaFixture) upTo(version int64) {
+	if _, err := f.provider.UpTo(context.Background(), version); err != nil {
+		f.t.Fatal(err)
+	}
+}
+func (f *schemaFixture) seedReceipt() {
+	_, err := f.db.Exec(`INSERT INTO receipts(receipt_id,payload) VALUES ('legacy','{"receipt_id":"legacy","simulated":true}')`)
+	if err != nil {
+		f.t.Fatal(err)
+	}
+}
+func (f *schemaFixture) receiptRetained() {
+	var payload string
+	if err := f.db.QueryRow("SELECT payload FROM receipts WHERE receipt_id='legacy'").Scan(&payload); err != nil {
+		f.t.Fatal(err)
+	}
+	if payload != `{"receipt_id":"legacy","simulated":true}` {
+		f.t.Fatal("legacy receipt changed")
+	}
 }

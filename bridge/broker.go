@@ -10,8 +10,14 @@ func NewBroker(journal ReceiptRecorder, c Config) (*Broker, error) {
 	if journal == nil {
 		return nil, errors.New("journal required")
 	}
+	return c.broker(journal)
+}
+func (c Config) broker(journal ReceiptRecorder) (*Broker, error) {
 	b := &Broker{journal: journal, clock: c.Clock}
 	if err := b.configure(c); err != nil {
+		return nil, err
+	}
+	if err := b.configureTasks(c.Tasks); err != nil {
 		return nil, err
 	}
 	return b, nil
@@ -21,7 +27,10 @@ func (b *Broker) configure(c Config) error {
 	if err := b.policy.configure(c.Grant); err != nil {
 		return err
 	}
-	return b.drafts.configure(c, b.policy.documents)
+	if err := b.drafts.configure(c, b.policy.documents); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (b *Broker) now() time.Time {
@@ -31,11 +40,16 @@ func (b *Broker) now() time.Time {
 	return b.clock().UTC()
 }
 
-// Dispatch completes a read only after its durable receipt commits.
+// Dispatch returns reads and task acceptance only after their durable receipt commits.
 func (b *Broker) Dispatch(ctx context.Context, raw []byte, identity *Identity) (Response, error) {
 	receipt, err := b.receipt(raw, identity)
 	if err != nil {
 		return Response{}, err
+	}
+	if b.authorize(identity) == "" {
+		if response, handled, err := b.dispatchTask(ctx, raw, receipt); handled {
+			return response, err
+		}
 	}
 	response := b.investigate(raw, identity)
 	response.Receipt = receipt
