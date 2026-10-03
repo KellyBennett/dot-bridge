@@ -2,7 +2,7 @@
 
 Offline synthetic prototype of the controlled bridge in [SPECIFICATION.md](SPECIFICATION.md).
 
-The first implementation slice is the request/authorization/receipt foundation.
+The first implementation slice is the Go request/authorization/receipt foundation.
 It implements only `read_draft` against host-supplied in-memory synthetic fixtures.
 The other five operation names are recognized but return
 `OPERATION_NOT_IMPLEMENTED`, with a durable denial receipt. No adapter, shell,
@@ -11,14 +11,26 @@ draft-write operation is present.
 
 ## Run the checks
 
-Python 3.12+, standard library only. From the repository root:
+Go 1.23+ with SQLite, Goose migrations and sqlc queries. SQLite uses the
+`modernc.org/sqlite` driver, which does not require a C toolchain for ordinary
+builds. The race detector requires a supported C toolchain. From the repository
+root:
 
 ```sh
-python -m unittest discover -s tests -v
+go test -race ./...
+go vet ./...
 ```
 
-Tests use temporary SQLite journals and synthetic fixture data, with an injected
-clock. No dependency installation is required.
+Tests use real temporary SQLite journals and synthetic fixture data, with an
+injected clock. Go downloads pinned module dependencies on the first build.
+There is no Python runtime, pgx dependency or database server in the application.
+
+`db/migrations` contains embedded Goose migrations. Opening a host-configured
+journal applies pending embedded migrations; callers cannot supply migration
+SQL or paths. `db/queries` is the source for sqlc-generated code in
+`internal/store`. Regenerate with `make generate` (pinned sqlc v1.29.0). Generated
+code is committed, so normal builds do not require sqlc. CI verifies regeneration,
+vet and the race-enabled test suite. Goose is used as a library; no CLI is needed.
 
 ## Core boundaries
 
@@ -31,7 +43,8 @@ clock. No dependency installation is required.
   stale revisions, expired/disabled grants and unsupported actions.
 - Export checking defaults to deny. A host may explicitly allow **synthetic**
   fixture text for tests; the implementation is not a production redactor.
-- SQLite records allowed and denied receipts transactionally, with sequence,
+- SQLite records allowed and denied receipts transactionally through generated
+  queries, with sequence,
   input/output digests, identity and policy metadata. Fixture text and exception
   details are not retained in receipts. No read response is returned if journal
   commit fails; `AuditUnavailable` means no bridge receipt is available.
@@ -40,10 +53,11 @@ clock. No dependency installation is required.
 - Returned text remains untrusted data. Consumers must render it safely without
   interpreting embedded instructions or automatically fetching links.
 
-The JSON digest format is contract-v1: sorted keys, compact separators,
-unescaped Unicode encoded as UTF-8, and no non-finite numbers. Raw document
-revisions hash exact UTF-8 bytes. This is a local format, not a claim of RFC 8785
-compliance or an implemented task-envelope approval protocol.
+Receipt input digests hash exact incoming JSON bytes, including whitespace.
+Document revisions hash exact UTF-8 text bytes. Task-envelope canonicalization,
+approval binding and idempotency are not implemented yet and will use a separate
+versioned canonical format. Read requests are capped at 8 KiB and reject duplicate
+JSON keys, trailing values, null fields, excessive nesting and invalid UTF-8.
 
 ## Status and next slice
 

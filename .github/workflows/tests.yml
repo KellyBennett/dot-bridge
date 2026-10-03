@@ -1,4 +1,4 @@
-name: Offline core tests
+name: Offline Go core tests
 on: [push, pull_request]
 permissions:
   contents: read
@@ -7,7 +7,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-go@v5
         with:
-          python-version: '3.12'
-      - run: python -m unittest discover -s tests -v
+          go-version-file: go.mod
+      - name: Verify generated queries
+        run: |
+          make generate
+          git diff --exit-code -- internal/store
+      - run: go vet ./...
+      - run: go test -race ./...
