@@ -59,8 +59,8 @@ func TestGooseMigrationDownUp(t *testing.T) {
 	f := newSchemaFixture(t)
 	f.up()
 	f.tableCount(1)
-	f.down()
-	f.tableCount(1)
+	f.downRetainingReceipts()
+	f.downRetainingReceipts()
 	f.down()
 	f.tableCount(0)
 	f.up()
@@ -94,5 +94,35 @@ func (f *schemaFixture) receiptRetained() {
 	}
 	if payload != `{"receipt_id":"legacy","simulated":true}` {
 		f.t.Fatal("legacy receipt changed")
+	}
+}
+
+func (f *schemaFixture) downRetainingReceipts() { f.down(); f.tableCount(1) }
+
+func TestLifecycleMigrationBackfillsAcceptedRuns(t *testing.T) {
+	f := newSchemaFixture(t)
+	f.upTo(2)
+	f.seedAcceptedRun()
+	f.up()
+	f.lifecycleRetained()
+	f.down()
+	f.up()
+	f.lifecycleRetained()
+}
+func (f *schemaFixture) seedAcceptedRun() {
+	f.exec(`INSERT INTO approvals VALUES('approval','principal','personal','project','digest','{"envelope_digest":"digest","simulated":true}','2099-01-01T00:00:00Z','sim_legacy')`)
+	f.exec(`INSERT INTO task_runs VALUES('sim_legacy','principal','personal','project','submit_task','key','input','approval','sim_token','{"run_id":"sim_legacy","state":"accepted","state_version":1,"simulated":true}')`)
+}
+func (f *schemaFixture) exec(query string) {
+	if _, err := f.db.Exec(query); err != nil {
+		f.t.Fatal(err)
+	}
+}
+func (f *schemaFixture) lifecycleRetained() {
+	var state, phase string
+	var version int
+	err := f.db.QueryRow("SELECT state,phase,state_version FROM run_lifecycle WHERE run_id='sim_legacy'").Scan(&state, &phase, &version)
+	if err != nil || state != "accepted" || phase != "queued" || version != 1 {
+		f.t.Fatal("accepted run not backfilled", err)
 	}
 }

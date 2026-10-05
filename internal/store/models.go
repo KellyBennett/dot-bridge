@@ -25,6 +25,59 @@ type Receipt struct {
 	Payload   string
 }
 
+type RunCursor struct {
+	CursorID      string
+	RunID         string
+	PrincipalID   string
+	Environment   string
+	ProjectID     string
+	AfterSequence int64
+}
+
+type RunEvent struct {
+	RunID    string
+	Sequence int64
+	Payload  string
+}
+
+type RunLifecycle struct {
+	RunID           string
+	PrincipalID     string
+	Environment     string
+	ProjectID       string
+	Phase           string
+	State           string
+	StateVersion    int64
+	Payload         string
+	AdapterSequence int64
+	EventSequence   int64
+	LeaseOwner      string
+	LeaseUntil      string
+}
+
+type RunPollWindow struct {
+	PrincipalID string
+	Environment string
+	ProjectID   string
+	StartedAt   string
+	LastAt      string
+	Polls       int64
+}
+
+type RunResult struct {
+	RunID   string
+	Payload string
+}
+
+type StubDispatch struct {
+	DispatchToken   string
+	EnvelopeDigest  string
+	ProfileRevision string
+	StartedAt       string
+	Scenario        string
+	FrozenTask      string
+}
+
 type TaskRun struct {
 	RunID          string
 	PrincipalID    string

@@ -2,13 +2,16 @@
 
 Offline synthetic prototype of the controlled bridge in [SPECIFICATION.md](SPECIFICATION.md).
 
-The Go core implements `read_draft` against host-supplied in-memory synthetic
-fixtures, plus optional `submit_task` acceptance and `read_run` acceptance lookup.
-Task support requires host-supplied `Config.Tasks` and a transactional `Journal`.
-Without it, both task operations return `OPERATION_NOT_IMPLEMENTED`.
+The Go core implements `read_draft` against host-supplied synthetic fixtures,
+`submit_task` with frozen host approvals, and `read_run` with durable lifecycle,
+event pagination and selected synthetic results. Task support requires
+host-supplied `Config.Tasks` and a transactional `Journal`; without them, task
+operations return `OPERATION_NOT_IMPLEMENTED`.
+
+A deterministic `stub-v1` adapter and host-driven worker advance scripted runs.
 `write_draft`, `cancel_run` and `read_pr` remain unimplemented and record denial
-receipts. No adapter, shell, network transport, account login, provider inference,
-PR access or filesystem draft-write operation is present.
+receipts. There is no shell, network transport, provider inference, account login,
+PR access or filesystem draft-write operation.
 
 ## Run the checks
 
@@ -132,18 +135,66 @@ Same scoped key and input returns the original run; changed input returns
 and restart, but still require a live matching grant. Failed transactions leave
 no consumed approval, run or acceptance receipt.
 
-Up to five runs may be pending per project/environment. All remain `accepted`
-at state version 1 with a recorded ten-minute start deadline; no worker launches
-them or advances their state. Acceptance never means execution or verification.
-The next adapter slice must enforce the deadline, recheck authority before launch
-and preserve the existing dispatch token for reconciliation. Submission keys and
-approval-consumption tombstones are retained without an automatic deletion path.
+Up to five runs may be queued per project/environment. Acceptance remains an
+immutable outcome at state version 1, with a ten-minute start deadline; replay
+returns that original outcome even after execution advances. Submission keys and
+approval-consumption tombstones have no automatic deletion path.
 
-`read_run` accepts exactly one of `run_id` or `idempotency_key`, scoped to the
-current principal/project/environment. It exports only labelled acceptance
-metadata after the host export check and durable read receipt succeed. No prompt,
-spec text, dispatch token, events or result artifacts are exported. Event cursors,
-result manifests, poll-rate limits and cancellation belong to later slices.
+## Deterministic execution and recovery
+
+The host constructs `NewStubAdapter(journal, scenario)`, uses its capability
+`ProfileRevision` in `TaskConfig` and the approved envelope, then calls
+`Broker.NewWorker(adapter)`. The approved adapter must report simulated `stub-v1`,
+durable dispatch lookup, structured events and no tool-approval or cancellation
+capability. `Worker.Tick(ctx)` performs one synchronous host cycle. It does not
+start a listener, daemon or timer; public operations never launch or poll an agent.
+The host controls scheduling and the injected clock.
+
+Scenarios are fixed host configuration: `success`, `verification_failure`,
+`lost_ack`, `unavailable`, `loss_after_start`, `malformed_events` and
+`missing_manifest`. Their immutable revision includes the script and scenario.
+Task text cannot select a scenario. The adapter stores an idempotent dispatch
+ledger in SQLite, emits 120 scripted progress events and terminates after two
+virtual seconds. It creates only labelled synthetic patch/result data; neither
+prompt nor spec text is copied into results. Verification evidence names the
+fixture check, its labelled scripted output and output digest. No command runs.
+
+A worker serializes claims with the journal writer lock and a 30-second lease.
+A database constraint permits one active run per project/environment. Before
+preflight and again before start, it checks the grant, frozen specs, workspace,
+policy/export/profile revisions, start deadline and lease. Preflight has no
+execution effect. A durable dispatch-prepared event and receipt commit before
+adapter start; adapter observation, events, result and receipt commit together
+afterward. The adapter ledger bridges the separate start/observation transactions.
+
+Existing active intents are inspected by their original dispatch token and
+never started again. A lost acknowledgement or crash after ledger insertion
+can reconcile the same run. A crash before any verifiable adapter start remains
+`uncertain`, blocks the next queued launch and requires host investigation; no
+automatic retry or replacement task is issued. Contact loss preserves the last
+confirmed state, becomes uncertain after 30 seconds without verification, and
+can recover when evidence returns. Malformed evidence or a missing result cannot
+be reported as completion. Stale workers cannot commit over a newer lease.
+
+`read_run` accepts exactly one of `run_id` or `idempotency_key`, plus optional
+`event_cursor` and `artifact_ids` (at most four unique IDs). All selectors and
+opaque cursors are bound to principal/project/environment and run. Reads return
+the latest persisted status, up to 100 ordered events, `next_cursor`, and
+`truncated` when more events remain. A cursor at the tail can be reused after
+new events arrive and survives restart; unknown or mismatched cursors return
+`CURSOR_EXPIRED`. Cursors are retained without automatic expiry in this slice.
+
+When a result is durable, its bounded manifest is included; artifact text is
+returned only for explicitly selected registered IDs. Early selection returns
+`RESULT_NOT_READY`; unknown IDs return `NOT_FOUND`. Raw prompts, specs, dispatch
+tokens and adapter transcripts stay local. The complete output bundle passes the
+host export check and durable read receipt before it is returned. Export defaults
+to deny. The result store is capped at 192 KiB, manifest at 32 KiB, individual
+artifacts at 128 KiB, and total read response at 256 KiB with receipt headroom.
+Poll attempts for found runs are limited to two per rolling second per
+principal/project/environment, persisted across restart. Return `LIMIT_EXCEEDED`
+and back off rather than polling faster; denied export/selection attempts also
+consume the polling budget.
 
 ## Status and next slice
 
@@ -151,14 +202,14 @@ This is an initial stage-2 offline core slice, not a completed stage-2 gate or
 a dogfood release. The specification remains the target; its stage-0 decisions
 remain open, and no connectivity or real-execution gate has been passed.
 
-Next: a durable deterministic stub, sequenced events and run recovery using the
-persisted dispatch intent, followed by cancellation. Subsequent slices add
+Next: transactional queued cancellation and evidence-based running cancellation.
+Subsequent slices add
 draft-store filesystem protections, synthetic PR pagination, export/quota/rate
 controls and the full
 scenario matrix before transport is considered.
 
-Current limitations include no execution or run-state transitions, live policy
-reload, rate limiting, full quotas, input transport framing,
+Current limitations include no real execution, cancellation, live policy reload,
+full quotas, input transport framing,
 secret scanning, display sanitization, protected filesystem draft store or host
 approval UI. SQLite journal directory ownership, backup and corruption recovery
 are not enforced here; use only synthetic temporary data. Task acceptance keeps

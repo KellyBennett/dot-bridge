@@ -273,7 +273,10 @@ func (t *taskTransaction) insertRun(input submission, run RunData) error {
 	if err != nil {
 		return err
 	}
-	return t.queries.InsertTaskRun(t.ctx, parameters)
+	if err = t.queries.InsertTaskRun(t.ctx, parameters); err != nil {
+		return err
+	}
+	return t.insertLifecycle(parameters)
 }
 
 func (input submission) runParameters(run RunData) (store.InsertTaskRunParams, error) {
@@ -331,4 +334,15 @@ func (t *taskTransaction) rejectApproval(code string) (Approval, error) {
 		return Approval{}, err
 	}
 	return Approval{Summary: Label, Receipt: response.Receipt, Simulated: true}, errors.New(code)
+}
+
+func (t *taskTransaction) insertLifecycle(run store.InsertTaskRunParams) error {
+	return t.insertLifecycleParameters(lifecycleParameters(run))
+}
+
+func lifecycleParameters(run store.InsertTaskRunParams) store.InsertLifecycleParams {
+	return store.InsertLifecycleParams{RunID: run.RunID, PrincipalID: run.PrincipalID, Environment: run.Environment, ProjectID: run.ProjectID, Payload: run.Payload}
+}
+func (t *receiptTransaction) insertLifecycleParameters(params store.InsertLifecycleParams) error {
+	return t.queries.InsertLifecycle(t.ctx, params)
 }

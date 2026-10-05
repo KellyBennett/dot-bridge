@@ -117,18 +117,22 @@ func (ref SpecReference) authority(drafts draftRegistry) string {
 	return ""
 }
 
-// RunData exports only bounded acceptance metadata, never prompts or spec text.
+// RunData exports bounded verified lifecycle metadata, never prompts or spec text.
 type RunData struct {
-	Summary         string `json:"summary"`
-	RunID           string `json:"run_id"`
-	EnvelopeDigest  string `json:"envelope_digest"`
-	AcceptedAt      string `json:"accepted_at"`
-	StartDeadline   string `json:"start_deadline"`
-	State           string `json:"state"`
-	StateVersion    int64  `json:"state_version"`
-	LastVerifiedAt  string `json:"last_verified_at"`
-	ResultAvailable bool   `json:"result_available"`
-	Simulated       bool   `json:"simulated"`
+	Summary            string `json:"summary"`
+	RunID              string `json:"run_id"`
+	EnvelopeDigest     string `json:"envelope_digest"`
+	AcceptedAt         string `json:"accepted_at"`
+	StartDeadline      string `json:"start_deadline"`
+	State              string `json:"state"`
+	StateVersion       int64  `json:"state_version"`
+	LastVerifiedAt     string `json:"last_verified_at"`
+	AdapterHealth      string `json:"adapter_health,omitempty"`
+	Phase              string `json:"phase,omitempty"`
+	TerminalReason     string `json:"terminal_reason,omitempty"`
+	LastConfirmedState string `json:"last_confirmed_state,omitempty"`
+	ResultAvailable    bool   `json:"result_available"`
+	Simulated          bool   `json:"simulated"`
 }
 
 type submitTaskArgs struct {
@@ -138,8 +142,10 @@ type submitTaskArgs struct {
 }
 
 type readRunArgs struct {
-	RunID          string `json:"run_id,omitempty"`
-	IdempotencyKey string `json:"idempotency_key,omitempty"`
+	RunID          string   `json:"run_id,omitempty"`
+	IdempotencyKey string   `json:"idempotency_key,omitempty"`
+	EventCursor    string   `json:"event_cursor,omitempty"`
+	ArtifactIDs    []string `json:"artifact_ids,omitempty"`
 }
 
 func parseSubmission(raw []byte) (submitTaskArgs, TaskEnvelope, string) {
@@ -174,15 +180,15 @@ func parseRunSelector(raw []byte) (readRunArgs, string) {
 	if err != nil {
 		return args, "INVALID_ARGUMENT"
 	}
-	err = object.decode(raw, &args, nil, []string{"run_id", "idempotency_key"})
-	if err != nil || len(object) != 1 || !args.valid() {
+	err = object.decode(raw, &args, nil, []string{"run_id", "idempotency_key", "event_cursor", "artifact_ids"})
+	if err != nil || !args.valid() {
 		return args, "INVALID_ARGUMENT"
 	}
 	return args, ""
 }
 
 func (args readRunArgs) valid() bool {
-	return validRunID(args.RunID) || uuidPattern.MatchString(args.IdempotencyKey)
+	return (validRunID(args.RunID) != uuidPattern.MatchString(args.IdempotencyKey)) && args.optionsValid()
 }
 
 func validRunID(id string) bool {
@@ -301,4 +307,24 @@ func acceptedRun(digest string, now time.Time) (RunData, error) {
 
 func (r request) submission() (submitTaskArgs, TaskEnvelope, string) {
 	return parseSubmission(r.Arguments)
+}
+
+func (args readRunArgs) optionsValid() bool {
+	if args.EventCursor != "" && !validCursor(args.EventCursor) {
+		return false
+	}
+	if len(args.ArtifactIDs) > 4 {
+		return false
+	}
+	seen := permissions{}
+	for _, id := range args.ArtifactIDs {
+		if !idPattern.MatchString(id) || seen[id] {
+			return false
+		}
+		seen[id] = true
+	}
+	return true
+}
+func validCursor(cursor string) bool {
+	return len(cursor) == 40 && cursor[:4] == "cur_" && uuidPattern.MatchString(cursor[4:])
 }

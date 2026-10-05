@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"time"
 
 	"github.com/KellyBennett/dot-bridge/internal/store"
 )
@@ -40,20 +41,26 @@ func (t *taskTransaction) selectedRun(args readRunArgs) (storedSubmission, error
 }
 
 func (s *taskService) runSnapshot(tx *taskTransaction, args readRunArgs) (Response, error) {
-	prior, found, err := tx.optionalRun(args)
-	if !found && err == nil {
-		return taskResponse(tx.receipt, "NOT_FOUND"), nil
-	}
-	if err != nil {
-		return Response{}, err
-	}
-	response, err := prior.response(tx.receipt)
+	response, err := tx.runSnapshot(args, s.clock())
 	if err != nil {
 		return Response{}, err
 	}
 	return s.exportRun(response), nil
 }
-
+func (t *taskTransaction) runSnapshot(args readRunArgs, now time.Time) (Response, error) {
+	prior, found, err := t.optionalRun(args)
+	if !found && err == nil {
+		return taskResponse(t.receipt, "NOT_FOUND"), nil
+	}
+	if err != nil {
+		return Response{}, err
+	}
+	response, err := prior.response(t.receipt)
+	if err != nil {
+		return Response{}, err
+	}
+	return t.readDetails(args, response, now)
+}
 func (prior storedSubmission) response(receipt Receipt) (Response, error) {
 	run, err := decodeRun(prior.payload)
 	if err != nil {
@@ -65,13 +72,16 @@ func (prior storedSubmission) response(receipt Receipt) (Response, error) {
 }
 
 func (response *Response) describeRunExport() error {
-	exported, err := json.Marshal(response.Run)
+	exported, err := response.runExport()
 	response.Receipt.OutputDigest, response.Receipt.ExportedBytes = byteDigest(exported), len(exported)
 	return err
 }
 
 func (s *taskService) exportRun(response Response) Response {
-	exported, _ := json.Marshal(response.Run)
+	if response.Run == nil {
+		return response
+	}
+	exported, _ := response.runExport()
 	if code := s.drafts.export(string(exported)); code != "" {
 		return taskResponse(response.Receipt.withoutRun(), code)
 	}
@@ -104,4 +114,18 @@ func (lookup runLookup) read(service *taskService, tx *taskTransaction) (Respons
 
 func (s *taskService) runAuthority(tx *taskTransaction) string {
 	return s.policy.receiptAuthority(tx.receipt, s.clock())
+}
+
+func (response Response) runExport() ([]byte, error) {
+	return json.Marshal(runExport{Run: response.Run, Events: response.Events, Result: response.Result, Artifacts: response.Artifacts,
+		NextCursor: response.NextCursor, Truncated: response.Truncated})
+}
+
+type runExport struct {
+	Run        *RunData         `json:"run"`
+	Events     []RunEvent       `json:"events,omitempty"`
+	Result     *ResultManifest  `json:"result,omitempty"`
+	Artifacts  []ResultArtifact `json:"artifacts,omitempty"`
+	NextCursor string           `json:"next_cursor,omitempty"`
+	Truncated  bool             `json:"truncated,omitempty"`
 }
